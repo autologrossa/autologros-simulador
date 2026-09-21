@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AUTOLOGROS · Simulador de crédito prendario</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --paper:#EDF0F4; --panel:#FFFFFF; --ink:#16202E; --muted:#5B6676; --line:#D5DBE3;
+  --blue:#0B3D91; --blue-soft:#E3EAF7; --gold:#C9A227; --field:#F7F9FB;
+  --plate:#FFFFFF; --plate-ink:#111820;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0F1622; --panel:#172131; --ink:#E6EBF2; --muted:#9AA6B6; --line:#2A3649;
+    --blue:#5B8BE0; --blue-soft:#1C2B45; --gold:#D9B443; --field:#1B2638;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0F1622; --panel:#172131; --ink:#E6EBF2; --muted:#9AA6B6; --line:#2A3649;
+  --blue:#5B8BE0; --blue-soft:#1C2B45; --gold:#D9B443; --field:#1B2638;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 20px 48px}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px}
+.brand{display:flex;align-items:center;gap:12px}
+.mark{width:40px;height:40px;border-radius:8px;background:var(--blue);display:grid;place-items:center}
+.mark svg{width:26px;height:26px}
+.brand h1{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:26px;letter-spacing:.04em;margin:0;line-height:1}
+.brand p{margin:2px 0 0;color:var(--muted);font-size:13px}
+.grid{display:grid;grid-template-columns:360px 1fr;gap:20px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px}
+.panel h2{font-size:15px;font-weight:600;margin:0 0 14px}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--field);border:1px solid var(--line);border-radius:8px;padding:3px;margin-bottom:16px}
+.seg button{font:inherit;font-weight:600;border:0;background:transparent;color:var(--muted);padding:9px 6px;border-radius:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--blue);color:#fff}
+.field{margin-bottom:13px}
+.field label{display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:5px}
+.field label span{font-weight:400;color:var(--muted)}
+.field input,.field select{width:100%;font:inherit;font-variant-numeric:tabular-nums;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:7px;padding:9px 11px}
+.field input:focus,.field select:focus,.seg button:focus-visible,.btn:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.derived{display:flex;justify-content:space-between;align-items:baseline;background:var(--blue-soft);border-radius:7px;padding:9px 11px;margin:-3px 0 13px;font-size:13px}
+.derived b{font-size:15px;font-variant-numeric:tabular-nums}
+.uva-only[hidden]{display:none}
+hr{border:0;border-top:1px solid var(--line);margin:16px 0}
+.btn{font:inherit;font-weight:600;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:9px 14px;border-radius:7px;cursor:pointer}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn[hidden]{display:none}
+
+/* Plate */
+.hero{display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:center;margin-bottom:20px}
+@media (max-width:640px){.hero{grid-template-columns:1fr}}
+.plate{width:min(100%,380px);aspect-ratio:400/130;background:var(--plate);border:3px solid var(--plate-ink);border-radius:12px;overflow:hidden;display:grid;grid-template-rows:26% 1fr;box-shadow:0 1px 0 rgba(0,0,0,.08)}
+.plate-band{background:#0B3D91;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:clamp(11px,2.6vw,14px);letter-spacing:.12em}
+.plate-band i{font-style:normal;display:inline-block;width:16px;height:11px;background:linear-gradient(#74ACDF 0 33%,#fff 33% 66%,#74ACDF 66%);border-radius:1px;vertical-align:middle}
+.plate-num{display:flex;align-items:center;justify-content:center;font-family:"Barlow Condensed",sans-serif;font-weight:700;color:var(--plate-ink);font-size:clamp(34px,8vw,54px);letter-spacing:.06em;font-variant-numeric:tabular-nums;line-height:1}
+.hero-text .k{font-size:13px;color:var(--muted)}
+.hero-text .v{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.hero-text .sub{color:var(--muted);font-size:13px;margin-top:6px;max-width:44ch}
+
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:20px}
+@media (max-width:760px){.metrics{grid-template-columns:repeat(2,1fr)}}
+.m{padding:12px 14px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:var(--panel)}
+.m .k{font-size:12.5px;color:var(--muted)}
+.m .v{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+.m .h{font-size:12px;color:var(--muted)}
+.m.key .v{color:var(--blue)}
+
+.tablehead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.tablehead h2{margin:0}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;max-height:520px;overflow-y:auto}
+table{border-collapse:collapse;width:100%;min-width:640px;font-variant-numeric:tabular-nums;font-size:13.5px}
+th{position:sticky;top:0;background:var(--blue);color:#fff;font-weight:600;text-align:right;padding:9px 12px;white-space:nowrap}
+th:first-child,td:first-child{text-align:center}
+td{padding:7px 12px;text-align:right;border-top:1px solid var(--line);white-space:nowrap;background:var(--panel)}
+tbody tr:nth-child(even) td{background:var(--field)}
+tfoot td{font-weight:700;background:var(--blue-soft)!important;position:sticky;bottom:0}
+.note{font-size:12.5px;color:var(--muted);margin-top:12px;max-width:90ch}
+.toast{font-size:13px;color:var(--muted)}
+@media (prefers-reduced-motion:no-preference){.plate-num{transition:opacity .15s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="mark" aria-hidden="true">
+        <svg viewBox="0 0 26 26" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 16l2-6a2 2 0 0 1 2-1.4h10a2 2 0 0 1 2 1.4l2 6"/><rect x="3" y="15" width="20" height="5" rx="1.5"/><circle cx="8" cy="20.5" r="1.6" fill="#C9A227" stroke="none"/><circle cx="18" cy="20.5" r="1.6" fill="#C9A227" stroke="none"/></svg>
+      </div>
+      <div>
+        <h1>AUTOLOGROS</h1>
+        <p>Simulador de crédito prendario · sistema francés</p>
+      </div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="panel" aria-label="Datos del crédito">
+      <h2>Datos del crédito</h2>
+      <div class="seg" role="group" aria-label="Sistema de tasa">
+        <button type="button" id="bUVA" aria-pressed="true">UVA</button>
+        <button type="button" id="bFija" aria-pressed="false">Tasa fija</button>
+      </div>
+
+      <div class="field"><label for="veh">Valor del vehículo <span>$</span></label><input id="veh" inputmode="numeric" value="15.000.000"></div>
+      <div class="field"><label for="fin">Porcentaje financiado <span>%</span></label><input id="fin" inputmode="decimal" value="50"></div>
+      <div class="derived"><span>Capital del préstamo</span><b id="cap">—</b></div>
+
+      <div class="two">
+        <div class="field"><label for="n">Cuotas</label><input id="n" inputmode="numeric" value="36"></div>
+        <div class="field"><label for="tna">TNA <span>%</span></label><input id="tna" inputmode="decimal" value="54,9"></div>
+      </div>
+
+      <div class="two">
+        <div class="field"><label for="base">Base de cálculo</label>
+          <select id="base"><option value="12">Mensual (TNA/12)</option><option value="365">365 días</option><option value="360">360 días</option></select></div>
+        <div class="field"><label for="iva">IVA s/interés <span>%</span></label><input id="iva" inputmode="decimal" value="21"></div>
+      </div>
+      <div class="field"><label for="gto">Gastos y comisión de otorgamiento <span>%</span></label><input id="gto" inputmode="decimal" value="2"></div>
+
+      <div class="uva-only" id="uvaFields">
+        <hr>
+        <div class="field"><label for="uva0">Valor UVA hoy <span>$</span></label><input id="uva0" inputmode="decimal" value="2.120,30"></div>
+      </div>
+      <button class="btn" type="button" id="reset">Restablecer valores</button>
+    </section>
+
+    <section aria-label="Resultado">
+      <div class="panel" style="margin-bottom:20px">
+        <div class="hero">
+          <div class="plate" aria-label="Valor de la primera cuota">
+            <div class="plate-band"><span>AUTOLOGROS</span><span><i></i>&nbsp; 1ª CUOTA</span></div>
+            <div class="plate-num" id="plate">—</div>
+          </div>
+          <div class="hero-text">
+            <div class="k">El cliente recibe</div>
+            <div class="v" id="neto">—</div>
+            <div class="sub" id="heroSub">—</div>
+          </div>
+        </div>
+        <div class="metrics" id="metrics"></div>
+        <div class="tablehead">
+          <h2>Plan de cuotas</h2>
+          <div style="display:flex;gap:10px;align-items:center">
+            <span class="toast" id="toast" aria-live="polite"></span>
+            <button class="btn primary" type="button" id="xls">Descargar Excel</button>
+          </div>
+        </div>
+        <div class="scroll"><table id="plan"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+        <p class="note" id="note"></p>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const DEF={veh:"15.000.000",fin:"50",n:"36",base:"12",iva:"21",gto:"2",uva0:"2.120,30"};
+const TNA_DEF={UVA:"54,9",FIJA:"80"};
+let sistema="UVA", last=null, tnaMem={...TNA_DEF};
+
+function num(s){ s=String(s).trim().replace(/\s|\$/g,""); if(!s) return NaN;
+  if(s.includes(",")) s=s.replace(/\./g,"").replace(",","."); else if((s.match(/\./g)||[]).length>1 || /^\d{1,3}(\.\d{3})+$/.test(s)) s=s.replace(/\./g,"");
+  return parseFloat(s); }
+const fm=(v,d=0)=>isFinite(v)?v.toLocaleString("es-AR",{minimumFractionDigits:d,maximumFractionDigits:d}):"—";
+const $f=(v,d=0)=>isFinite(v)?"$ "+fm(v,d):"—";
+const pf=(v,d=2)=>isFinite(v)?fm(v*100,d)+" %":"—";
+
+function irr(flows){ // monthly, bisection
+  let lo=-0.99,hi=10; const npv=r=>flows.reduce((a,f,i)=>a+f/Math.pow(1+r,i),0);
+  if(npv(lo)*npv(hi)>0) return NaN;
+  for(let k=0;k<200;k++){const m=(lo+hi)/2; (npv(lo)*npv(m)<=0)?hi=m:lo=m;} return (lo+hi)/2; }
+
+function calc(){
+  const veh=num($("veh").value), fin=num($("fin").value)/100, n=Math.round(num($("n").value));
+  const tna=num($("tna").value)/100, base=+$("base").value, iva=num($("iva").value)/100, gto=num($("gto").value)/100;
+  const uva0=num($("uva0").value);
+  const cap=veh*fin; $("cap").textContent=$f(cap);
+  if(!(cap>0)||!(n>0)||!(tna>=0)||!(iva>=0)||!(gto>=0)||(sistema==="UVA"&&!(uva0>0))){ render(null); return; }
+  const uva = sistema==="UVA";
+  const tem = base===12? tna/12 : tna*30/base;               // en UVA: tasa sobre capital en UVA
+  const f = tem===0? 1/n : tem/(1-Math.pow(1+tem,-n));
+  const capU = uva? cap/uva0 : cap;                          // en UVA o en $
+  const cuotaU = capU*f;
+  let saldo=capU, rows=[], flowsI=[cap*(1-gto)], flowsS=[cap*(1-gto)], tot={cap:0,int:0,iva:0,cuota:0};
+  for(let k=1;k<=n;k++){
+    const idx = uva? uva0 : 1;                               // UVA sin proyectar: valor de hoy
+    const intU=saldo*tem, capK=cuotaU-intU; saldo=Math.max(0,saldo-capK);
+    const r={k, uvaV:idx, cuotaU, int:intU*idx, cap:capK*idx, saldo:saldo*idx};
+    r.iva=r.int*iva; r.cuota=r.cap+r.int+r.iva;
+    rows.push(r); flowsI.push(-r.cuota); flowsS.push(-(r.cap+r.int));
+    tot.cap+=r.cap; tot.int+=r.int; tot.iva+=r.iva; tot.cuota+=r.cuota;
+  }
+  const cftI=irr(flowsI), cftS=irr(flowsS);
+  last={uva,cap,n,tna,tem,iva,gto,uva0,cuotaU,rows,tot,neto:cap*(1-gto),
+    tea:Math.pow(1+tem,12)-1, cftI:Math.pow(1+cftI,12)-1, cftS:Math.pow(1+cftS,12)-1, capU};
+  render(last);
+}
+
+function render(d){
+  const th=document.querySelector("#plan thead"), tb=document.querySelector("#plan tbody"), tf=document.querySelector("#plan tfoot");
+  if(!d){ $("plate").textContent="—"; $("neto").textContent="—"; $("heroSub").textContent="Revisá los datos: hay un valor vacío o fuera de rango.";
+    $("metrics").innerHTML=""; th.innerHTML=tb.innerHTML=tf.innerHTML=""; return; }
+  const r1=d.rows[0];
+  $("plate").textContent="$ "+fm(r1.cuota);
+  $("neto").textContent=$f(d.neto);
+  $("heroSub").textContent = d.uva
+    ? `Préstamo de ${$f(d.cap)} = ${fm(d.capU,2)} UVA. Cuota fija de ${fm(d.cuotaU,2)} UVA (sin IVA), que se paga al valor UVA de cada vencimiento.`
+    : `Préstamo de ${$f(d.cap)} en ${d.n} cuotas fijas de capital e interés; el IVA se calcula sobre el interés de cada cuota.`;
+  const M=[
+    ["TEM", pf(d.tem), d.uva?"Sobre capital en UVA":"Tasa efectiva mensual"],
+    ["TEA", pf(d.tea), d.uva?"Sobre UVA":"Tasa efectiva anual"],
+    ["CFT con IVA", pf(d.cftI), d.uva?"Anual, más variación UVA":"Costo financiero total", true],
+    ["CFT sin IVA", pf(d.cftS), "Incluye gastos de otorgamiento"],
+    ["Total a devolver", $f(d.tot.cuota), d.uva?"A valor UVA de hoy":"Suma de cuotas con IVA"],
+    ["Intereses", $f(d.tot.int), "Sin IVA"],
+    ["IVA", $f(d.tot.iva), "Sobre intereses"],
+    ["Gastos al otorgar", $f(d.cap*d.gto), "Se descuentan del capital"],
+  ];
+  $("metrics").innerHTML=M.map(([k,v,h,key])=>`<div class="m${key?" key":""}"><div class="k">${k}</div><div class="v">${v}</div><div class="h">${h}</div></div>`).join("");
+  const cols = d.uva? ["Cuota","Saldo en UVA","Cuota en UVA","Saldo capital","Capital","Interés","IVA","Valor cuota"]
+                    : ["Cuota","Saldo capital","Capital","Interés","IVA","Valor cuota"];
+  th.innerHTML="<tr>"+cols.map(c=>`<th scope="col">${c}</th>`).join("")+"</tr>";
+  tb.innerHTML=d.rows.map(r=>"<tr>"+[r.k, ...(d.uva?[fm(r.saldo/d.uva0,2),fm(r.cuotaU,2)]:[]), $f(r.saldo),$f(r.cap),$f(r.int),$f(r.iva),$f(r.cuota)].map(v=>`<td>${v}</td>`).join("")+"</tr>").join("");
+  tf.innerHTML="<tr>"+["Total",...(d.uva?["",""]:[]),"",$f(d.tot.cap),$f(d.tot.int),$f(d.tot.iva),$f(d.tot.cuota)].map(v=>`<td>${v}</td>`).join("")+"</tr>";
+  $("note").textContent = d.uva
+    ? `Importes en pesos al valor UVA de hoy (${$f(d.uva0,2)}), sin proyectar. Cada cuota se paga al valor UVA publicado por el BCRA el día del vencimiento. La TEA y el CFT se suman a la variación de la UVA.`
+    : "Cuotas en pesos, fijas en capital e interés. El IVA sobre intereses baja a medida que baja el saldo.";
+}
+
+function setSistema(s){ sistema=s; $("bUVA").setAttribute("aria-pressed",s==="UVA"); $("bFija").setAttribute("aria-pressed",s!=="UVA");
+  document.querySelectorAll(".uva-only").forEach(e=>e.hidden = s!=="UVA");
+  $("tna").value=tnaMem[s]; $("tna").previousElementSibling.firstChild.textContent = s==="UVA"?"TNA sobre UVA ":"TNA "; calc(); }
+$("bUVA").onclick=()=>setSistema("UVA"); $("bFija").onclick=()=>setSistema("FIJA");
+["veh","fin","n","tna","base","iva","gto","uva0"].forEach(id=>$(id).addEventListener("input",calc));
+$("tna").addEventListener("input",e=>tnaMem[sistema]=e.target.value);
+$("veh").addEventListener("blur",e=>{const v=num(e.target.value); if(isFinite(v)) e.target.value=fm(v);});
+$("reset").onclick=()=>{Object.entries(DEF).forEach(([k,v])=>$(k).value=v); tnaMem={...TNA_DEF}; setSistema("UVA");};
+
+function exportar(){
+  if(!last||typeof XLSX==="undefined"){ $("toast").textContent="No se pudo generar el Excel. Recargá la página."; return; }
+  const d=last, wb=XLSX.utils.book_new();
+  const res=[["AUTOLOGROS · Simulación de crédito prendario"],[],
+    ["Sistema",d.uva?"UVA":"Tasa fija"],["Capital",d.cap],["Cuotas",d.n],["TNA"+(d.uva?" sobre UVA":""),d.tna],
+    ...(d.uva?[["Valor UVA utilizado",d.uva0],["Capital en UVA",d.capU],["Cuota en UVA",d.cuotaU]]:[]),
+    ["IVA s/interés",d.iva],["Gastos de otorgamiento",d.gto],["Neto recibido",d.neto],[],
+    ["TEM",d.tem],["TEA",d.tea],["CFT con IVA",d.cftI],["CFT sin IVA",d.cftS],["Total a devolver",d.tot.cuota]];
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(res),"Resumen");
+  const head=d.uva?["Cuota","Saldo en UVA","Cuota en UVA","Saldo capital","Capital","Interés","IVA","Valor cuota"]:["Cuota","Saldo capital","Capital","Interés","IVA","Valor cuota"];
+  const body=d.rows.map(r=>[r.k,...(d.uva?[r.saldo/d.uva0,r.cuotaU]:[]),r.saldo,r.cap,r.int,r.iva,r.cuota]);
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([head,...body]),"Plan de cuotas");
+  XLSX.writeFile(wb,"AUTOLOGROS_simulacion.xlsx");
+  $("toast").textContent="";
+}
+setSistema("UVA");
+$("xls").onclick=exportar;
+</script>
+</body>
+</html>

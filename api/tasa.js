@@ -9,16 +9,13 @@ const TABLA = "config_simulador";
 module.exports = async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
-  // Diagnóstico: /api/tasa?diag=1 — no expone ninguna clave
+  // Diagnóstico: /api/tasa?diag=1 — informa solo si cada variable está bien formada
   if (req.query && req.query.diag) {
     return res.status(200).json({
-      url_cargada: !!SB_URL,
-      url: SB_URL ? SB_URL.slice(0, 40) : null,
-      clave_cargada: !!SB_KEY,
-      largo_clave: SB_KEY.length,
-      codigo_cargado: !!CODIGO,
-      node: process.version,
-      fetch: typeof fetch
+      url_ok: /^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(SB_URL),
+      clave_ok: SB_KEY.length > 20 && !/^https?:/.test(SB_KEY),
+      codigo_ok: CODIGO.length > 0,
+      node: process.version
     });
   }
 

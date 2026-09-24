@@ -92,6 +92,11 @@ tfoot td{font-weight:700;background:var(--blue-soft)!important;position:sticky;b
 .note{font-size:12.5px;color:var(--muted);margin-top:12px;max-width:90ch}
 .toast{font-size:13px;color:var(--muted)}
 .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.linkbtn{display:block;margin:10px auto 0;font:inherit;font-size:12.5px;color:var(--muted);background:none;border:0;padding:4px;cursor:pointer;text-decoration:underline}
+.linkbtn:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+.cfgmsg{font-size:12.5px;color:var(--muted);margin:10px 0 0}
+.cfgmsg.err{color:#C0392B}
+.field input[aria-invalid="true"]{border-color:#C0392B}
 @media (max-width:600px){
   .wrap{padding:14px 12px 32px}
   .panel{padding:16px 14px}
@@ -137,29 +142,42 @@ tfoot td{font-weight:700;background:var(--blue-soft)!important;position:sticky;b
       <div class="field"><label for="fin">Porcentaje financiado <span>%</span></label><input id="fin" inputmode="decimal" value="50"></div>
       <div class="derived"><span>Capital del préstamo</span><b id="cap">—</b></div>
 
-      <div class="two">
-        <div class="field"><label for="n">Cuotas</label><input id="n" inputmode="numeric" value="36"></div>
-        <div class="field"><label for="tna">TNA <span>%</span></label><input id="tna" inputmode="decimal" value="80"></div>
-      </div>
-
-      <div class="two">
-        <div class="field"><label for="base">Denominador <span>base</span></label><input id="base" inputmode="numeric" value="36500"></div>
-        <div class="field"><label for="iva">IVA s/interés <span>%</span></label><input id="iva" inputmode="decimal" value="21"></div>
-      </div>
+      <div class="field"><label for="n">Cuotas <span>de 12 a 36</span></label><input id="n" inputmode="numeric" value="36"></div>
       <div class="field"><label for="gto">Gastos y comisión de otorgamiento <span>%</span></label><input id="gto" inputmode="decimal" value="2"></div>
 
-      <div class="uva-only" id="uvaFields">
-        <hr>
-        <div class="field"><label for="uva0">Valor UVA hoy <span>$</span></label><input id="uva0" inputmode="decimal" value="2.120,30"></div>
-      </div>
+      <div class="derived"><span id="tnaLab">TNA aplicada</span><b id="tnaOut">—</b></div>
+      <div class="derived uva-only"><span>Valor UVA</span><b id="uvaOut">—</b></div>
+
       <button class="btn" type="button" id="reset">Restablecer valores</button>
+      <button type="button" class="linkbtn" id="cfgOpen">Configurar tasa</button>
+
+      <div id="cfgBox" hidden>
+        <hr>
+        <div id="cfgLock">
+          <div class="field"><label for="cfgKey">Código de acceso</label><input id="cfgKey" type="password" autocomplete="off"></div>
+          <div class="actions"><button class="btn primary" type="button" id="cfgEnter">Ingresar</button><button class="btn" type="button" id="cfgCancel">Cancelar</button></div>
+          <p class="cfgmsg" id="cfgMsg"></p>
+        </div>
+        <div id="cfgForm" hidden>
+          <div class="two">
+            <div class="field"><label for="tnaF">TNA tasa fija <span>%</span></label><input id="tnaF" inputmode="decimal"></div>
+            <div class="field"><label for="tnaU">TNA sobre UVA <span>%</span></label><input id="tnaU" inputmode="decimal"></div>
+          </div>
+          <div class="two">
+            <div class="field"><label for="ivaC">IVA s/interés <span>%</span></label><input id="ivaC" inputmode="decimal"></div>
+            <div class="field"><label for="uvaC">Valor UVA <span>$</span></label><input id="uvaC" inputmode="decimal"></div>
+          </div>
+          <div class="actions"><button class="btn primary" type="button" id="cfgSave">Guardar</button><button class="btn" type="button" id="cfgReset">Valores originales</button><button class="btn" type="button" id="cfgClose">Cerrar</button></div>
+          <p class="cfgmsg" id="cfgMsg2">Los cambios quedan guardados solo en este dispositivo.</p>
+        </div>
+      </div>
     </section>
 
     <section aria-label="Resultado">
       <div class="panel" style="margin-bottom:20px">
         <div class="hero">
-          <div class="plate" aria-label="Valor de la primera cuota">
-            <div class="plate-band"><span>AUTOLOGROS</span><span><i></i>&nbsp; 1ª CUOTA</span></div>
+          <div class="plate" aria-label="Valor de la cuota mensual">
+            <div class="plate-band"><span>AUTOLOGROS</span><span><i></i></span></div>
             <div class="plate-num" id="plate">—</div>
           </div>
           <div class="hero-text">
@@ -186,9 +204,15 @@ tfoot td{font-weight:700;background:var(--blue-soft)!important;position:sticky;b
 
 <script>
 const $=id=>document.getElementById(id);
-const DEF={veh:"15.000.000",fin:"50",n:"36",base:"36500",iva:"21",gto:"2",uva0:"2.120,30"};
-const TNA_DEF={UVA:"54,9",FIJA:"80"};
-let sistema="FIJA", last=null, tnaMem={...TNA_DEF};
+/* ===== CONFIGURACIÓN — editar solo estas líneas ===== */
+const CFG_DEF={ tnaFija:80, tnaUVA:54.9, iva:21, uva0:2120.30 };
+const CLAVE="AUTOLOGROS2026";          // código para abrir "Configurar tasa"
+/* =================================================== */
+const BASE=36500, NMIN=12, NMAX=36;
+const DEF={veh:"15.000.000",fin:"50",n:"36",gto:"2"};
+const CERO={veh:"0",fin:"0",n:"0",gto:"0"};
+let sistema="FIJA", last=null, CFG={...CFG_DEF};
+try{ const g=localStorage.getItem("autologros_cfg"); if(g) CFG={...CFG_DEF,...JSON.parse(g)}; }catch(e){}
 
 function num(s){ s=String(s).trim().replace(/\s|\$/g,""); if(!s) return NaN;
   if(s.includes(",")) s=s.replace(/\./g,"").replace(",","."); else if((s.match(/\./g)||[]).length>1 || /^\d{1,3}(\.\d{3})+$/.test(s)) s=s.replace(/\./g,"");
@@ -203,14 +227,23 @@ function irr(flows){ // monthly, bisection
   for(let k=0;k<200;k++){const m=(lo+hi)/2; (npv(lo)*npv(m)<=0)?hi=m:lo=m;} return (lo+hi)/2; }
 
 function calc(){
-  const veh=num($("veh").value), fin=num($("fin").value)/100, n=Math.round(num($("n").value));
-  const tna=num($("tna").value)/100, base=num($("base").value), iva=num($("iva").value)/100, gto=num($("gto").value)/100;
-  const uva0=num($("uva0").value);
-  const cap=veh*fin; $("cap").textContent=$f(cap);
-  if(!(cap>0)||!(n>0)||!(tna>=0)||!(base>0)||!(iva>=0)||!(gto>=0)||(sistema==="UVA"&&!(uva0>0))){ render(null); return; }
+  const veh=num($("veh").value), finP=num($("fin").value), n=Math.round(num($("n").value)), gtoP=num($("gto").value);
+  const fin=finP/100, gto=gtoP/100;
   const uva = sistema==="UVA";
-  const tem = tna*100*30/base;                              // TEM = TNA × 30 / denominador (en UVA: sobre capital en UVA)
-  const ppy = base/100/30;                                  // períodos por año
+  const tna=(uva?CFG.tnaUVA:CFG.tnaFija)/100, iva=CFG.iva/100, uva0=CFG.uva0;
+  const cap=veh*fin;
+  $("cap").textContent = cap>0? $f(cap) : "—";
+  $("tnaOut").textContent = pf(tna)+(uva?" + UVA":"");
+  $("uvaOut").textContent = $f(uva0,2);
+  const nOk = isFinite(n) && n>=NMIN && n<=NMAX;
+  $("n").setAttribute("aria-invalid", (!nOk && isFinite(n) && n>0)?"true":"false");
+  const vacio = !(veh>0) && !(finP>0) && !(n>0);
+  if(!(cap>0)||!nOk||!(gtoP>=0)||!(tna>=0)||!(iva>=0)||(uva&&!(uva0>0))){
+    render(null, vacio? "Cargá los datos del crédito para ver la simulación."
+      : (!nOk? `La cantidad de cuotas debe estar entre ${NMIN} y ${NMAX}.` : "Revisá los datos cargados."));
+    return; }
+  const tem = tna*100*30/BASE;                              // TEM = TNA × 30 / 365 (en UVA: sobre capital en UVA)
+  const ppy = BASE/100/30;                                  // períodos por año
   const ie = tem*(1+iva);                                   // tasa con IVA: cuotas iguales con IVA incluido
   const f = ie===0? 1/n : ie/(1-Math.pow(1+ie,-n));
   const capU = uva? cap/uva0 : cap;                          // en UVA o en $
@@ -225,15 +258,15 @@ function calc(){
     tot.cap+=r.cap; tot.int+=r.int; tot.iva+=r.iva; tot.cuota+=r.cuota;
   }
   const cftI=irr(flowsI), cftS=irr(flowsS);
-  last={uva,veh,fin,base,cap,n,tna,tem,iva,gto,uva0,cuotaU,rows,tot,neto:cap*(1-gto),
+  last={uva,veh,fin,cap,n,tna,tem,iva,gto,uva0,cuotaU,rows,tot,neto:cap*(1-gto),
     tea:Math.pow(1+tem,ppy)-1, cftI:Math.pow(1+cftI,ppy)-1, cftS:Math.pow(1+cftS,ppy)-1, capU};
   render(last);
 }
 
-function render(d){
+function render(d,msg){
   const th=document.querySelector("#plan thead"), tb=document.querySelector("#plan tbody"), tf=document.querySelector("#plan tfoot");
-  if(!d){ $("plate").textContent="—"; $("neto").textContent="—"; $("heroSub").textContent="Revisá los datos: hay un valor vacío o fuera de rango.";
-    $("metrics").innerHTML=""; th.innerHTML=tb.innerHTML=tf.innerHTML=""; return; }
+  if(!d){ $("plate").textContent="—"; $("neto").textContent="—"; $("heroSub").textContent=msg||"";
+    $("metrics").innerHTML=""; th.innerHTML=tb.innerHTML=tf.innerHTML=""; $("note").textContent=""; return; }
   const r1=d.rows[0];
   $("plate").textContent="$ "+fm(r1.cuota);
   $("neto").textContent=$f(d.neto);
@@ -258,17 +291,32 @@ function render(d){
   tf.innerHTML="<tr>"+["Total",...(d.uva?["",""]:[]),"",$f(d.tot.cap),$f(d.tot.int),$f(d.tot.iva),$f(d.tot.cuota)].map(v=>`<td>${v}</td>`).join("")+"</tr>";
   $("note").textContent = d.uva
     ? `Importes en pesos al valor UVA de hoy (${$f(d.uva0,2)}), sin proyectar. Cada cuota se paga al valor UVA publicado por el BCRA el día del vencimiento. La TEA y el CFT se suman a la variación de la UVA.`
-    : "Cuotas iguales en pesos, con IVA sobre intereses incluido. TEM = TNA × 30 / denominador.";
+    : "Cuotas iguales en pesos, con IVA sobre intereses incluido. Tasas calculadas sobre base 365 días.";
 }
 
 function setSistema(s){ sistema=s; $("bUVA").setAttribute("aria-pressed",s==="UVA"); $("bFija").setAttribute("aria-pressed",s!=="UVA");
   document.querySelectorAll(".uva-only").forEach(e=>e.hidden = s!=="UVA");
-  $("tna").value=tnaMem[s]; $("tna").previousElementSibling.firstChild.textContent = s==="UVA"?"TNA sobre UVA ":"TNA "; calc(); }
+  $("tnaLab").textContent = s==="UVA"?"TNA sobre UVA":"TNA aplicada"; calc(); }
 $("bUVA").onclick=()=>setSistema("UVA"); $("bFija").onclick=()=>setSistema("FIJA");
-["veh","fin","n","tna","base","iva","gto","uva0"].forEach(id=>$(id).addEventListener("input",calc));
-$("tna").addEventListener("input",e=>tnaMem[sistema]=e.target.value);
+["veh","fin","n","gto"].forEach(id=>$(id).addEventListener("input",calc));
 $("veh").addEventListener("blur",e=>{const v=num(e.target.value); if(isFinite(v)) e.target.value=fm(v);});
-$("reset").onclick=()=>{Object.entries(DEF).forEach(([k,v])=>$(k).value=v); tnaMem={...TNA_DEF}; setSistema("FIJA");};
+$("reset").onclick=()=>{Object.entries(CERO).forEach(([k,v])=>$(k).value=v); calc(); $("veh").focus();};
+
+/* Configurar tasa */
+function cfgFill(){ $("tnaF").value=fm(CFG.tnaFija,2); $("tnaU").value=fm(CFG.tnaUVA,2); $("ivaC").value=fm(CFG.iva,2); $("uvaC").value=fm(CFG.uva0,2); }
+function cfgApply(){ try{ localStorage.setItem("autologros_cfg",JSON.stringify(CFG)); }catch(e){} calc(); }
+$("cfgOpen").onclick=()=>{ $("cfgBox").hidden=false; $("cfgLock").hidden=false; $("cfgForm").hidden=true; $("cfgMsg").textContent=""; $("cfgKey").value=""; $("cfgKey").focus(); };
+$("cfgCancel").onclick=()=>{ $("cfgBox").hidden=true; };
+$("cfgClose").onclick=()=>{ $("cfgBox").hidden=true; };
+function cfgEnter(){ if($("cfgKey").value.trim()===CLAVE){ $("cfgLock").hidden=true; $("cfgForm").hidden=false; cfgFill(); $("tnaF").focus(); }
+  else { $("cfgMsg").textContent="Código incorrecto."; $("cfgMsg").className="cfgmsg err"; } }
+$("cfgEnter").onclick=cfgEnter;
+$("cfgKey").addEventListener("keydown",e=>{ if(e.key==="Enter") cfgEnter(); });
+$("cfgSave").onclick=()=>{ const v={tnaFija:num($("tnaF").value),tnaUVA:num($("tnaU").value),iva:num($("ivaC").value),uva0:num($("uvaC").value)};
+  if(!(v.tnaFija>=0)||!(v.tnaUVA>=0)||!(v.iva>=0)||!(v.uva0>0)){ $("cfgMsg2").textContent="Hay un valor inválido."; $("cfgMsg2").className="cfgmsg err"; return; }
+  CFG=v; cfgApply(); $("cfgMsg2").textContent="Guardado en este dispositivo."; $("cfgMsg2").className="cfgmsg"; };
+$("cfgReset").onclick=()=>{ CFG={...CFG_DEF}; try{ localStorage.removeItem("autologros_cfg"); }catch(e){} cfgFill(); calc();
+  $("cfgMsg2").textContent="Se restauraron los valores originales."; $("cfgMsg2").className="cfgmsg"; };
 
 async function saveFile(name,blob,label){
   $("toast").textContent="";
@@ -320,7 +368,7 @@ function exportarPDF(){
   const box=(x,lab,val)=>{ doc.setTextColor(...MUT); doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.text(lab,x,y+8);
     doc.setTextColor(...INK); doc.setFont("helvetica","bold"); doc.setFontSize(13); doc.text(val,x,y+16); };
   const cw=(W-2*M)/3;
-  box(M+6,"Monto del préstamo",P(d.cap)); box(M+6+cw,d.uva?"Primera cuota (valor UVA hoy)":"Cuota mensual (IVA incluido)",P(d.rows[0].cuota,2)); box(M+6+2*cw,"Cantidad de cuotas",String(d.n));
+  box(M+6,"Monto del préstamo",P(d.cap)); box(M+6+cw,d.uva?"Cuota mensual (valor UVA hoy)":"Cuota mensual (IVA incluido)",P(d.rows[0].cuota,2)); box(M+6+2*cw,"Cantidad de cuotas",String(d.n));
   y+=30;
   // parameters and rates, two columns
   const left=[["Valor del vehículo",P(d.veh)],["Porcentaje financiado",fm(d.fin*100,1)+" %"],["Capital del préstamo",P(d.cap)],

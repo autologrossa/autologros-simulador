@@ -62,8 +62,13 @@ hr{border:0;border-top:1px solid var(--line);margin:16px 0}
 .btn[hidden]{display:none}
 
 /* Plate */
-.hero{display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:center;margin-bottom:20px}
+.hero{display:grid;grid-template-columns:380px 1fr;gap:24px;align-items:center;margin-bottom:20px}
 @media (max-width:640px){.hero{grid-template-columns:1fr}}
+[hidden]{display:none!important}
+.empty{padding:44px 16px;text-align:center}
+.empty p{margin:0;font-size:19px;font-weight:700;color:var(--ink);line-height:1.35}
+.empty span{display:block;margin-top:8px;font-size:13.5px;font-weight:400;color:var(--muted)}
+@media (max-width:600px){.empty{padding:30px 6px}.empty p{font-size:17px}}
 .plate{width:min(100%,380px);aspect-ratio:400/130;background:var(--plate);border:3px solid var(--plate-ink);border-radius:12px;overflow:hidden;display:grid;grid-template-rows:26% 1fr;box-shadow:0 1px 0 rgba(0,0,0,.08)}
 .plate-band{background:#004A91;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:clamp(11px,2.6vw,14px);letter-spacing:.12em}
 .plate-band i{font-style:normal;display:inline-block;width:16px;height:11px;background:linear-gradient(#74ACDF 0 33%,#fff 33% 66%,#74ACDF 66%);border-radius:1px;vertical-align:middle}
@@ -138,12 +143,12 @@ tfoot td{font-weight:700;background:var(--blue-soft)!important;position:sticky;b
         <button type="button" id="bUVA" aria-pressed="false">UVA</button>
       </div>
 
-      <div class="field"><label for="veh">Valor del vehículo <span>$</span></label><input id="veh" inputmode="numeric" value="15.000.000"></div>
-      <div class="field"><label for="fin">Porcentaje financiado <span>%</span></label><input id="fin" inputmode="decimal" value="50"></div>
+      <div class="field"><label for="veh">Valor del vehículo <span>$</span></label><input id="veh" inputmode="numeric" value="0"></div>
+      <div class="field"><label for="fin">Porcentaje financiado <span>%</span></label><input id="fin" inputmode="decimal" value="0"></div>
       <div class="derived"><span>Capital del préstamo</span><b id="cap">—</b></div>
 
-      <div class="field"><label for="n">Cuotas <span>de 12 a 36</span></label><input id="n" inputmode="numeric" value="36"></div>
-      <div class="field"><label for="gto">Gastos y comisión de otorgamiento <span>%</span></label><input id="gto" inputmode="decimal" value="2"></div>
+      <div class="field"><label for="n">Cuotas <span>de 12 a 36</span></label><input id="n" inputmode="numeric" value="0"></div>
+      <div class="field"><label for="gto">Gastos y comisión de otorgamiento <span>%</span></label><input id="gto" inputmode="decimal" value="0"></div>
 
       <div class="derived"><span id="tnaLab">TNA aplicada</span><b id="tnaOut">—</b></div>
       <div class="derived uva-only"><span>Valor UVA</span><b id="uvaOut">—</b></div>
@@ -175,7 +180,8 @@ tfoot td{font-weight:700;background:var(--blue-soft)!important;position:sticky;b
 
     <section aria-label="Resultado">
       <div class="panel" style="margin-bottom:20px">
-        <div class="hero">
+        <div class="empty" id="empty" hidden><p id="emptyMsg"></p><span>Los datos se cargan en el panel de la izquierda.</span></div>
+        <div class="hero" id="hero">
           <div class="plate" aria-label="Valor de la cuota mensual">
             <div class="plate-band"><span>AUTOLOGROS</span><span><i></i></span></div>
             <div class="plate-num" id="plate">—</div>
@@ -187,7 +193,7 @@ tfoot td{font-weight:700;background:var(--blue-soft)!important;position:sticky;b
           </div>
         </div>
         <div class="metrics" id="metrics"></div>
-        <div class="tablehead">
+        <div class="tablehead" id="tablehead">
           <h2>Plan de cuotas</h2>
           <div class="actions">
             <span class="toast" id="toast" aria-live="polite"></span>
@@ -195,7 +201,7 @@ tfoot td{font-weight:700;background:var(--blue-soft)!important;position:sticky;b
             <button class="btn primary" type="button" id="pdf">Descargar PDF</button>
           </div>
         </div>
-        <div class="scroll"><table id="plan"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
+        <div class="scroll" id="scroll"><table id="plan"><thead></thead><tbody></tbody><tfoot></tfoot></table></div>
         <p class="note" id="note"></p>
       </div>
     </section>
@@ -209,7 +215,6 @@ const CFG_DEF={ tnaFija:80, tnaUVA:54.9, iva:21, uva0:2120.30 };
 const CLAVE="AUTOLOGROS2026";          // código para abrir "Configurar tasa"
 /* =================================================== */
 const BASE=36500, NMIN=12, NMAX=36;
-const DEF={veh:"15.000.000",fin:"50",n:"36",gto:"2"};
 const CERO={veh:"0",fin:"0",n:"0",gto:"0"};
 let sistema="FIJA", last=null, CFG={...CFG_DEF};
 try{ const g=localStorage.getItem("autologros_cfg"); if(g) CFG={...CFG_DEF,...JSON.parse(g)}; }catch(e){}
@@ -263,10 +268,13 @@ function calc(){
   render(last);
 }
 
+function vista(vacio){ ["hero","metrics","tablehead","scroll","note"].forEach(id=>$(id).hidden=vacio); $("empty").hidden=!vacio; }
 function render(d,msg){
   const th=document.querySelector("#plan thead"), tb=document.querySelector("#plan tbody"), tf=document.querySelector("#plan tfoot");
-  if(!d){ $("plate").textContent="—"; $("neto").textContent="—"; $("heroSub").textContent=msg||"";
+  if(!d){ vista(true); $("emptyMsg").textContent=msg||"";
+    $("plate").textContent="—"; $("neto").textContent="—"; $("heroSub").textContent="";
     $("metrics").innerHTML=""; th.innerHTML=tb.innerHTML=tf.innerHTML=""; $("note").textContent=""; return; }
+  vista(false);
   const r1=d.rows[0];
   $("plate").textContent="$ "+fm(r1.cuota);
   $("neto").textContent=$f(d.neto);
@@ -289,9 +297,10 @@ function render(d,msg){
   th.innerHTML="<tr>"+cols.map(c=>`<th scope="col">${c}</th>`).join("")+"</tr>";
   tb.innerHTML=d.rows.map(r=>"<tr>"+[r.k, ...(d.uva?[fm(r.saldo/d.uva0,2),fm(r.cuotaU,2)]:[]), $f(r.saldo),$f(r.cap),$f(r.int),$f(r.iva),$f(r.cuota)].map(v=>`<td>${v}</td>`).join("")+"</tr>").join("");
   tf.innerHTML="<tr>"+["Total",...(d.uva?["",""]:[]),"",$f(d.tot.cap),$f(d.tot.int),$f(d.tot.iva),$f(d.tot.cuota)].map(v=>`<td>${v}</td>`).join("")+"</tr>";
-  $("note").textContent = d.uva
+  const SEG=" El valor de la cuota no incluye el seguro de vida ni el seguro sobre la unidad. Ambos están a cargo del deudor, vencen en la misma fecha que la cuota y se informan antes de su vencimiento.";
+  $("note").textContent = SEG.trim()+" "+(d.uva
     ? `Importes en pesos al valor UVA de hoy (${$f(d.uva0,2)}), sin proyectar. Cada cuota se paga al valor UVA publicado por el BCRA el día del vencimiento. La TEA y el CFT se suman a la variación de la UVA.`
-    : "Cuotas iguales en pesos, con IVA sobre intereses incluido. Tasas calculadas sobre base 365 días.";
+    : "Cuotas iguales en pesos, con IVA sobre intereses incluido. Tasas calculadas sobre base 365 días.");
 }
 
 function setSistema(s){ sistema=s; $("bUVA").setAttribute("aria-pressed",s==="UVA"); $("bFija").setAttribute("aria-pressed",s!=="UVA");
@@ -402,6 +411,7 @@ function exportarPDF(){
   const nota=d.uva
     ? "Importes en pesos calculados al valor UVA utilizado. Cada cuota se abona al valor UVA publicado por el BCRA a la fecha de su vencimiento."
     : "Cuotas iguales en pesos con IVA sobre intereses incluido.";
+  const seguros="El valor de la cuota no incluye el seguro de vida ni el seguro sobre la unidad. Ambos están a cargo del deudor, vencen en la misma fecha que la cuota y se informan antes de su vencimiento.";
   const legal="Simulación de carácter orientativo. No constituye oferta ni compromiso de otorgamiento; sujeta a evaluación crediticia y a las condiciones vigentes al momento de la solicitud.";
   const pages=doc.getNumberOfPages();
   for(let i=1;i<=pages;i++){
@@ -409,7 +419,7 @@ function exportarPDF(){
     if(i>1){ doc.setFillColor(...NAVY); doc.rect(0,0,W,9,"F"); doc.setTextColor(255,255,255); doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.text("AUTOLOGROS · Plan de cuotas",M,6); }
     doc.setDrawColor(213,219,227); doc.line(M,280,W-M,280);
     doc.setTextColor(...MUT); doc.setFont("helvetica","normal"); doc.setFontSize(7.2);
-    doc.text(doc.splitTextToSize(nota+" "+legal,W-2*M-22),M,284);
+    doc.text(doc.splitTextToSize(seguros+" "+nota+" "+legal,W-2*M-22),M,284);
     doc.text("Página "+i+" de "+pages,W-M,284,{align:"right"});
   }
   saveFile("AUTOLOGROS_plan_de_cuotas.pdf",doc.output("blob"),"PDF");
